@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState, type FormEvent } from "react"
-import { CalendarX2, ChevronDown, ChevronLeft, ChevronRight, ScanFace } from "lucide-react"
+import { CalendarX2, ChevronDown, ChevronLeft, ChevronRight, ScanFace, Trash2 } from "lucide-react"
 import { useSesion } from "@/components/sesion"
 import {
   Aviso,
@@ -41,6 +41,21 @@ export default function CalendarioPage() {
   const [error, setError] = useState<string | null>(null)
   const [docentes, setDocentes] = useState<Docente[]>([])
   const [grupos, setGrupos] = useState<Grupo[]>([])
+  const [porEliminar, setPorEliminar] = useState<number | null>(null)
+  const [eliminando, setEliminando] = useState(false)
+  const [aviso, setAviso] = useState<{ tono: "exito" | "peligro"; texto: string } | null>(null)
+
+  /** Elimina una sesión sin asistencia registrada (la base de datos también lo impide). */
+  async function eliminar(s: SesionDetalle) {
+    setEliminando(true)
+    const { data, error } = await supabase().from("sesion").delete().eq("id", s.id).select("id")
+    setEliminando(false)
+    setPorEliminar(null)
+    if (error) return setAviso({ tono: "peligro", texto: mensajeError(error) })
+    if (!data?.length) return setAviso({ tono: "peligro", texto: "No tienes permiso para eliminar esta sesión." })
+    setAviso({ tono: "exito", texto: `Sesión eliminada: ${s.asignatura} · ${s.grupo?.nombre} · ${hhmm(s.hora_inicio)}.` })
+    await cargar(fecha)
+  }
 
   const cargar = useCallback(async (f: string) => {
     if (!esFechaValida(f)) return
@@ -88,6 +103,11 @@ export default function CalendarioPage() {
       {error && (
         <Aviso tono="peligro" className="mb-6">
           {error}
+        </Aviso>
+      )}
+      {aviso && (
+        <Aviso tono={aviso.tono} className="mb-6">
+          {aviso.texto}
         </Aviso>
       )}
 
@@ -160,11 +180,49 @@ export default function CalendarioPage() {
                         />
                       </button>
                       {puedeTomar && (
-                        <BotonEnlace href={`/asistencia?sesion=${s.id}`} variante="secundario" tam="sm">
-                          <ScanFace className="size-3.5" aria-hidden /> Tomar asistencia
-                        </BotonEnlace>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <BotonEnlace href={`/asistencia?sesion=${s.id}`} variante="secundario" tam="sm">
+                            <ScanFace className="size-3.5" aria-hidden /> Tomar asistencia
+                          </BotonEnlace>
+                          <Boton
+                            variante="fantasma"
+                            tam="sm"
+                            aria-label={`Eliminar la sesión de ${s.asignatura}`}
+                            title="Eliminar sesión"
+                            onClick={() => {
+                              setAviso(null)
+                              setPorEliminar(porEliminar === s.id ? null : s.id)
+                            }}
+                          >
+                            <Trash2 className="size-3.5" aria-hidden />
+                          </Boton>
+                        </div>
                       )}
                     </div>
+                    {porEliminar === s.id && (
+                      <div className="animate-entrar px-5 pb-4 sm:pl-[8.5rem]">
+                        {lista.length > 0 ? (
+                          <Aviso tono="aviso" titulo="No se puede eliminar">
+                            Esta sesión ya tiene {lista.length} {lista.length === 1 ? "asistencia registrada" : "asistencias registradas"}.
+                            Se conserva para no perder el historial.
+                          </Aviso>
+                        ) : (
+                          <div className="flex flex-col gap-3 rounded-lg bg-peligro-suave px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-sm text-peligro">
+                              ¿Eliminar {s.asignatura} · {s.grupo?.nombre}? Esta acción no se puede deshacer.
+                            </p>
+                            <div className="flex gap-2">
+                              <Boton variante="fantasma" tam="sm" onClick={() => setPorEliminar(null)}>
+                                Cancelar
+                              </Boton>
+                              <Boton tam="sm" className="bg-peligro hover:bg-[oklch(0.45_0.18_27)]" cargando={eliminando} onClick={() => eliminar(s)}>
+                                Eliminar sesión
+                              </Boton>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {expandida && (
                       <div className="animate-entrar px-5 pb-4 sm:pl-[8.5rem]">
                         {lista.length === 0 ? (

@@ -25,6 +25,11 @@ export function mensajeError(error: { message?: string; code?: string } | null |
     if (m.includes("nombre")) return "Ya existe un grupo con ese nombre."
     return "El registro ya existe."
   }
+  if (error.code === "23503") {
+    if (m.includes("asistencia_sesion_id_fkey"))
+      return "No se puede eliminar la sesión porque ya tiene asistencia registrada."
+    return "No se puede completar: el registro está en uso."
+  }
   if (error.code === "23514") return "Algún dato no cumple las reglas (campos vacíos, horas o correo inválidos)."
   if (error.code === "42501") return m && m !== "No autorizado" ? m : "Tu cuenta no tiene permiso para esta acción."
   return m || "Ocurrió un error inesperado."

@@ -210,6 +210,33 @@ export function FilasEsqueleto({ filas = 4 }: { filas?: number }) {
   )
 }
 
+/* ------------------------------------------------- Confirmar eliminación */
+export function ConfirmarEliminar({
+  texto,
+  cargando,
+  onConfirmar,
+  onCancelar,
+}: {
+  texto: ReactNode
+  cargando?: boolean
+  onConfirmar: () => void
+  onCancelar: () => void
+}) {
+  return (
+    <div className="flex animate-entrar flex-col gap-3 rounded-lg bg-peligro-suave px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-peligro">{texto}</p>
+      <div className="flex shrink-0 gap-2">
+        <Boton variante="fantasma" tam="sm" onClick={onCancelar}>
+          Cancelar
+        </Boton>
+        <Boton tam="sm" className="bg-peligro hover:bg-[oklch(0.45_0.18_27)]" cargando={cargando} onClick={onConfirmar}>
+          Eliminar
+        </Boton>
+      </div>
+    </div>
+  )
+}
+
 /* ---------------------------------------------------------------- Tabla */
 export function Tabla({ children }: { children: ReactNode }) {
   return (

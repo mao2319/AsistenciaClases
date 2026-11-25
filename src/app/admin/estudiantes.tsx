@@ -1,11 +1,12 @@
 "use client"
 
-import { useMemo, useState, type FormEvent } from "react"
-import { Pencil, Plus, ScanFace, Search, UserRound } from "lucide-react"
+import { Fragment, useMemo, useState, type FormEvent } from "react"
+import { Pencil, Plus, ScanFace, Search, Trash2, UserRound } from "lucide-react"
 import {
   Aviso,
   Boton,
   Campo,
+  ConfirmarEliminar,
   Entrada,
   Etiqueta,
   FilasEsqueleto,
@@ -30,6 +31,19 @@ export function TablaEstudiantes({ datos, onCambio }: { datos: DatosAdmin | null
   const [editando, setEditando] = useState<Estudiante | "nuevo" | null>(null)
   const [enrolando, setEnrolando] = useState<Estudiante | null>(null)
   const [mensaje, setMensaje] = useState<{ tono: "exito" | "peligro"; texto: string } | null>(null)
+  const [porEliminar, setPorEliminar] = useState<number | null>(null)
+  const [eliminando, setEliminando] = useState(false)
+
+  async function eliminar(e: Estudiante) {
+    setEliminando(true)
+    const { data, error } = await supabase().from("estudiante").delete().eq("id", e.id).select("id")
+    setEliminando(false)
+    setPorEliminar(null)
+    if (error) return setMensaje({ tono: "peligro", texto: mensajeError(error) })
+    if (!data?.length) return setMensaje({ tono: "peligro", texto: "No tienes permiso para eliminar estudiantes." })
+    setMensaje({ tono: "exito", texto: `${e.nombres} ${e.apellidos} fue eliminado junto con sus muestras faciales.` })
+    await onCambio()
+  }
 
   const filtrados = useMemo(() => {
     if (!datos) return []
@@ -122,7 +136,8 @@ export function TablaEstudiantes({ datos, onCambio }: { datos: DatosAdmin | null
               {filtrados.map((e) => {
                 const n = datos.muestras[e.id] ?? 0
                 return (
-                  <Tr key={e.id} className={e.activo ? "" : "text-zinc-400"}>
+                  <Fragment key={e.id}>
+                  <Tr className={e.activo ? "" : "text-zinc-400"}>
                     <Td className="tabular font-mono text-[13px]">{e.documento}</Td>
                     <Td className="font-medium text-zinc-900">
                       {e.apellidos}, {e.nombres}
@@ -141,9 +156,31 @@ export function TablaEstudiantes({ datos, onCambio }: { datos: DatosAdmin | null
                         <Boton variante="fantasma" tam="sm" onClick={() => alternarActivo(e)}>
                           {e.activo ? "Desactivar" : "Activar"}
                         </Boton>
+                        <Boton
+                          variante="fantasma"
+                          tam="sm"
+                          onClick={() => setPorEliminar(porEliminar === e.id ? null : e.id)}
+                          aria-label={`Eliminar a ${e.nombres} ${e.apellidos}`}
+                          title="Eliminar"
+                        >
+                          <Trash2 className="size-3.5" aria-hidden />
+                        </Boton>
                       </div>
                     </Td>
                   </Tr>
+                  {porEliminar === e.id && (
+                    <tr>
+                      <td colSpan={6} className="px-5 pb-3">
+                        <ConfirmarEliminar
+                          texto={`¿Eliminar a ${e.nombres} ${e.apellidos}? Se borran también sus muestras faciales. Si tiene asistencias registradas no se podrá eliminar.`}
+                          cargando={eliminando}
+                          onConfirmar={() => eliminar(e)}
+                          onCancelar={() => setPorEliminar(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 )
               })}
             </tbody>

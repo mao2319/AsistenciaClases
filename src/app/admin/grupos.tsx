@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { Check, Pencil, Users, X } from "lucide-react"
-import { Aviso, Boton, Entrada, FilasEsqueleto, Panel, TituloPanel, Vacio } from "@/components/ui"
+import { Check, Pencil, Trash2, Users, X } from "lucide-react"
+import { Aviso, Boton, ConfirmarEliminar, Entrada, FilasEsqueleto, Panel, TituloPanel, Vacio } from "@/components/ui"
 import type { Grupo } from "@/lib/datos"
 import { mensajeError, supabase } from "@/lib/supabase/cliente"
 import type { DatosAdmin } from "./page"
@@ -12,6 +12,19 @@ export function TablaGrupos({ datos, onCambio }: { datos: DatosAdmin | null; onC
   const [editando, setEditando] = useState<{ id: number; nombre: string } | null>(null)
   const [mensaje, setMensaje] = useState<{ tono: "exito" | "peligro"; texto: string } | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [porEliminar, setPorEliminar] = useState<number | null>(null)
+  const [eliminando, setEliminando] = useState(false)
+
+  async function eliminar(g: Grupo) {
+    setEliminando(true)
+    const { data, error } = await supabase().from("grupo").delete().eq("id", g.id).select("id")
+    setEliminando(false)
+    setPorEliminar(null)
+    if (error) return setMensaje({ tono: "peligro", texto: mensajeError(error) })
+    if (!data?.length) return setMensaje({ tono: "peligro", texto: "No tienes permiso para eliminar grupos." })
+    setMensaje({ tono: "exito", texto: `Grupo ${g.nombre} eliminado.` })
+    await onCambio()
+  }
 
   async function crear(e: FormEvent) {
     e.preventDefault()
@@ -58,7 +71,8 @@ export function TablaGrupos({ datos, onCambio }: { datos: DatosAdmin | null; onC
         ) : (
           <ul className="pb-2">
             {datos.grupos.map((g) => (
-              <li key={g.id} className="flex items-center gap-3 px-5 py-2.5 [&+&]:shadow-[0_-1px_0_rgb(0_0_0/0.05)]">
+              <li key={g.id} className="px-5 py-2.5 [&+&]:shadow-[0_-1px_0_rgb(0_0_0/0.05)]">
+                <div className="flex items-center gap-3">
                 {editando?.id === g.id ? (
                   <>
                     <Entrada
@@ -81,7 +95,27 @@ export function TablaGrupos({ datos, onCambio }: { datos: DatosAdmin | null; onC
                     <Boton variante="fantasma" tam="sm" onClick={() => setEditando({ id: g.id, nombre: g.nombre })} aria-label={`Renombrar ${g.nombre}`}>
                       <Pencil className="size-3.5" aria-hidden />
                     </Boton>
+                    <Boton
+                      variante="fantasma"
+                      tam="sm"
+                      onClick={() => setPorEliminar(porEliminar === g.id ? null : g.id)}
+                      aria-label={`Eliminar ${g.nombre}`}
+                      title="Eliminar"
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
+                    </Boton>
                   </>
+                )}
+                </div>
+                {porEliminar === g.id && (
+                  <div className="mt-2">
+                    <ConfirmarEliminar
+                      texto={`¿Eliminar el grupo ${g.nombre}? Solo es posible si no tiene estudiantes ni sesiones.`}
+                      cargando={eliminando}
+                      onConfirmar={() => eliminar(g)}
+                      onCancelar={() => setPorEliminar(null)}
+                    />
+                  </div>
                 )}
               </li>
             ))}

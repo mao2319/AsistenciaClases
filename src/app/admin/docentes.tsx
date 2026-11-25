@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
-import { KeyRound, Pencil, Plus, UserRound } from "lucide-react"
+import { Fragment, useState, type FormEvent } from "react"
+import { KeyRound, Pencil, Plus, Trash2, UserRound } from "lucide-react"
 import {
   Aviso,
   Boton,
   Campo,
+  ConfirmarEliminar,
   Entrada,
   Etiqueta,
   FilasEsqueleto,
@@ -25,6 +26,19 @@ export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; o
   const [editando, setEditando] = useState<Docente | "nuevo" | null>(null)
   const [acceso, setAcceso] = useState<Docente | null>(null)
   const [mensaje, setMensaje] = useState<{ tono: "exito" | "peligro"; texto: string } | null>(null)
+  const [porEliminar, setPorEliminar] = useState<number | null>(null)
+  const [eliminando, setEliminando] = useState(false)
+
+  async function eliminar(d: Docente) {
+    setEliminando(true)
+    const { data, error } = await supabase().from("docente").delete().eq("id", d.id).select("id")
+    setEliminando(false)
+    setPorEliminar(null)
+    if (error) return setMensaje({ tono: "peligro", texto: mensajeError(error) })
+    if (!data?.length) return setMensaje({ tono: "peligro", texto: "No tienes permiso para eliminar docentes." })
+    setMensaje({ tono: "exito", texto: `${d.nombres} ${d.apellidos} fue eliminado.` })
+    await onCambio()
+  }
 
   async function alternarActivo(d: Docente) {
     setMensaje(null)
@@ -89,7 +103,8 @@ export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; o
             </thead>
             <tbody>
               {datos.docentes.map((d) => (
-                <Tr key={d.id} className={d.activo ? "" : "text-zinc-400"}>
+                <Fragment key={d.id}>
+                <Tr className={d.activo ? "" : "text-zinc-400"}>
                   <Td className="tabular font-mono text-[13px]">{d.documento}</Td>
                   <Td className="font-medium text-zinc-900">
                     {d.apellidos}, {d.nombres}
@@ -113,9 +128,31 @@ export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; o
                       <Boton variante="fantasma" tam="sm" onClick={() => alternarActivo(d)}>
                         {d.activo ? "Desactivar" : "Activar"}
                       </Boton>
+                      <Boton
+                        variante="fantasma"
+                        tam="sm"
+                        onClick={() => setPorEliminar(porEliminar === d.id ? null : d.id)}
+                        aria-label={`Eliminar a ${d.nombres} ${d.apellidos}`}
+                        title="Eliminar"
+                      >
+                        <Trash2 className="size-3.5" aria-hidden />
+                      </Boton>
                     </div>
                   </Td>
                 </Tr>
+                {porEliminar === d.id && (
+                  <tr>
+                    <td colSpan={5} className="px-5 pb-3">
+                      <ConfirmarEliminar
+                        texto={`¿Eliminar a ${d.nombres} ${d.apellidos}? Si tiene sesiones o asistencias registradas no se podrá eliminar.`}
+                        cargando={eliminando}
+                        onConfirmar={() => eliminar(d)}
+                        onCancelar={() => setPorEliminar(null)}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </Tabla>

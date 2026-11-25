@@ -28,6 +28,14 @@ export function mensajeError(error: { message?: string; code?: string } | null |
   if (error.code === "23503") {
     if (m.includes("asistencia_sesion_id_fkey"))
       return "No se puede eliminar la sesión porque ya tiene asistencia registrada."
+    if (m.includes("asistencia_estudiante_id_fkey"))
+      return "No se puede eliminar al estudiante porque tiene asistencias registradas. Desactívalo para conservar el historial."
+    if (m.includes("sesion_docente_id_fkey") || m.includes("asistencia_docente_id_fkey"))
+      return "No se puede eliminar al docente porque tiene sesiones o asistencias registradas. Desactívalo para conservar el historial."
+    if (m.includes("estudiante_grupo_id_fkey"))
+      return "No se puede eliminar el grupo porque tiene estudiantes. Muévelos a otro grupo o elimínalos primero."
+    if (m.includes("sesion_grupo_id_fkey"))
+      return "No se puede eliminar el grupo porque tiene sesiones programadas."
     return "No se puede completar: el registro está en uso."
   }
   if (error.code === "23514") return "Algún dato no cumple las reglas (campos vacíos, horas o correo inválidos)."

@@ -176,6 +176,10 @@ export type Database = {
         Returns: { email: string; nombre: string; creado_en: string; tiene_usuario: boolean; ultimo_ingreso: string | null }[]
       }
       existe_usuario_auth: { Args: { p_email: string }; Returns: boolean }
+      listar_usuarios_sin_rol: {
+        Args: never
+        Returns: { email: string; creado_en: string; ultimo_ingreso: string | null }[]
+      }
       agregar_administrador: { Args: { p_email: string; p_nombre: string }; Returns: Json }
       quitar_administrador: { Args: { p_email: string }; Returns: Json }
       es_admin: { Args: never; Returns: boolean }

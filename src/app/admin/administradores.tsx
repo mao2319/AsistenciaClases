@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react"
-import { Plus, ShieldCheck, UserMinus } from "lucide-react"
+import { Plus, ShieldCheck, ShieldPlus, UserMinus } from "lucide-react"
 import { useSesion } from "@/components/sesion"
 import {
   Aviso,
@@ -23,6 +23,7 @@ import { fechaHoraDe } from "@/lib/fechas"
 import { mensajeError, supabase } from "@/lib/supabase/cliente"
 
 type Admin = { email: string; nombre: string; creado_en: string; tiene_usuario: boolean; ultimo_ingreso: string | null }
+type SinRol = { email: string; creado_en: string; ultimo_ingreso: string | null }
 
 /** Administradores: usuarios de Supabase con rol de administrador en la app. */
 export function TablaAdministradores({ onCuenta }: { onCuenta: (n: number) => void }) {
@@ -32,16 +33,19 @@ export function TablaAdministradores({ onCuenta }: { onCuenta: (n: number) => vo
   const [porQuitar, setPorQuitar] = useState<string | null>(null)
   const [quitando, setQuitando] = useState(false)
   const [mensaje, setMensaje] = useState<{ tono: "exito" | "peligro"; texto: string } | null>(null)
+  const [sinRol, setSinRol] = useState<SinRol[]>([])
 
   const cargar = useCallback(async () => {
-    const { data, error } = await supabase().rpc("listar_administradores")
-    if (error) {
-      setMensaje({ tono: "peligro", texto: mensajeError(error) })
+    const sb = supabase()
+    const [a, u] = await Promise.all([sb.rpc("listar_administradores"), sb.rpc("listar_usuarios_sin_rol")])
+    if (a.error) {
+      setMensaje({ tono: "peligro", texto: mensajeError(a.error) })
       setAdmins([])
       return
     }
-    setAdmins(data)
-    onCuenta(data.length)
+    setAdmins(a.data)
+    setSinRol(u.data ?? [])
+    onCuenta(a.data.length)
   }, [onCuenta])
 
   useEffect(() => {
@@ -139,7 +143,85 @@ export function TablaAdministradores({ onCuenta }: { onCuenta: (n: number) => vo
           </Tabla>
         )}
       </Panel>
+
+      {sinRol.length > 0 && (
+        <Panel className="overflow-hidden">
+          <TituloPanel
+            titulo="Usuarios de Supabase sin rol"
+            descripcion="Existen en Supabase › Authentication › Users pero aún no pueden usar la app. Asígnales el rol de administrador."
+          />
+          <ul className="pb-2">
+            {sinRol.map((u) => (
+              <FilaSinRol
+                key={u.email}
+                usuario={u}
+                onAsignado={async (texto) => {
+                  setMensaje({ tono: "exito", texto })
+                  await cargar()
+                }}
+                onError={(texto) => setMensaje({ tono: "peligro", texto })}
+              />
+            ))}
+          </ul>
+        </Panel>
+      )}
     </div>
+  )
+}
+
+function FilaSinRol({
+  usuario,
+  onAsignado,
+  onError,
+}: {
+  usuario: SinRol
+  onAsignado: (mensaje: string) => Promise<void>
+  onError: (mensaje: string) => void
+}) {
+  const [nombre, setNombre] = useState("")
+  const [abierto, setAbierto] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+
+  async function asignar() {
+    if (nombre.trim().length < 3) return onError("Escribe el nombre del administrador (mínimo 3 caracteres).")
+    setEnviando(true)
+    const { error } = await supabase().rpc("agregar_administrador", { p_email: usuario.email, p_nombre: nombre.trim() })
+    setEnviando(false)
+    if (error) return onError(mensajeError(error))
+    await onAsignado(`${usuario.email} ahora es administrador.`)
+  }
+
+  return (
+    <li className="flex flex-col gap-3 px-5 py-3 sm:flex-row sm:items-center [&+&]:shadow-[0_-1px_0_rgb(0_0_0/0.05)]">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-zinc-900">{usuario.email}</p>
+        <p className="text-xs text-zinc-500">
+          Último ingreso: {usuario.ultimo_ingreso ? fechaHoraDe(usuario.ultimo_ingreso) : "nunca"}
+        </p>
+      </div>
+      {abierto ? (
+        <div className="flex gap-2">
+          <Entrada
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Nombre completo"
+            aria-label={`Nombre de ${usuario.email}`}
+            className="sm:w-56"
+            autoFocus
+          />
+          <Boton tam="md" onClick={asignar} cargando={enviando}>
+            Asignar
+          </Boton>
+          <Boton variante="fantasma" onClick={() => setAbierto(false)}>
+            Cancelar
+          </Boton>
+        </div>
+      ) : (
+        <Boton variante="secundario" tam="sm" onClick={() => setAbierto(true)}>
+          <ShieldPlus className="size-3.5" aria-hidden /> Hacer administrador
+        </Boton>
+      )}
+    </li>
   )
 }
 

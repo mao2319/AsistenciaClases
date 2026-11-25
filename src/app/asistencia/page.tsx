@@ -16,6 +16,7 @@ import { useSesion } from "@/components/sesion"
 import { useCamara, VistaCamara } from "@/components/camara"
 import {
   AreaTexto,
+  Avatar,
   Aviso,
   Boton,
   Campo,
@@ -41,6 +42,7 @@ import {
 import { fechaLarga, hhmm, horaDe, hoy } from "@/lib/fechas"
 import { aVector, cargarModelos, detectarRostros, distancia, type Caja } from "@/lib/rostros"
 import { mensajeError, supabase } from "@/lib/supabase/cliente"
+import { urlsFotos } from "@/lib/fotos"
 
 type Veredicto =
   | { tipo: "REGISTRADO" | "DUPLICADO"; estudiante: string; hora: string }
@@ -212,6 +214,14 @@ export default function AsistenciaPage() {
 
   // ------------------------------------------------------------ Derivados
   const docenteSel = docentes.find((d) => d.id === docenteId)
+  const [fotos, setFotos] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let vivo = true
+    urlsFotos(docentes.map((d) => d.foto_path)).then((m) => vivo && setFotos(m))
+    return () => {
+      vivo = false
+    }
+  }, [docentes])
   const presentesIds = useMemo(() => new Set(asistentes.map((a) => a.estudiante_id)), [asistentes])
   const ausentes = estudiantes.filter((e) => !presentesIds.has(e.id))
 
@@ -294,12 +304,24 @@ export default function AsistenciaPage() {
             </Selector>
           </Campo>
         </div>
-        {docenteSel && sesiones && sesiones.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 px-5 pb-4 text-[13px] text-zinc-500">
-            <span>Grupos de {docenteSel.nombres} este día:</span>
-            {[...new Set(sesiones.map((s) => s.grupo?.nombre))].map((g) => (
-              <Etiqueta key={g}>{g}</Etiqueta>
-            ))}
+        {docenteSel && (
+          <div className="flex flex-wrap items-center gap-3 px-5 pb-4 text-[13px] text-zinc-500">
+            <Avatar
+              url={docenteSel.foto_path ? fotos[docenteSel.foto_path] : null}
+              nombre={`${docenteSel.nombres} ${docenteSel.apellidos}`}
+              tam={36}
+            />
+            <span className="font-medium text-zinc-900">
+              {docenteSel.nombres} {docenteSel.apellidos}
+            </span>
+            {sesiones && sesiones.length > 0 && (
+              <>
+                <span>· Grupos este día:</span>
+                {[...new Set(sesiones.map((s) => s.grupo?.nombre))].map((g) => (
+                  <Etiqueta key={g}>{g}</Etiqueta>
+                ))}
+              </>
+            )}
           </div>
         )}
       </Panel>

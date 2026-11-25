@@ -55,6 +55,7 @@ export type Database = {
           creado_en: string
           documento: string
           email: string | null
+          foto_path: string | null
           id: number
           nombres: string
         }
@@ -65,6 +66,7 @@ export type Database = {
           creado_en?: string
           documento: string
           email?: string | null
+          foto_path?: string | null
           id?: never
           nombres: string
         }

@@ -210,6 +210,28 @@ export function FilasEsqueleto({ filas = 4 }: { filas?: number }) {
   )
 }
 
+/* ---------------------------------------------------------------- Avatar */
+export function Avatar({ url, nombre, tam = 32 }: { url?: string | null; nombre: string; tam?: number }) {
+  const iniciales = nombre
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("")
+  return url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt={`Foto de ${nombre}`} width={tam} height={tam} className="shrink-0 rounded-full bg-zinc-100 object-cover" style={{ width: tam, height: tam }} />
+  ) : (
+    <span
+      className="grid shrink-0 place-items-center rounded-full bg-zinc-200 font-semibold text-zinc-600"
+      style={{ width: tam, height: tam, fontSize: Math.max(10, tam * 0.36) }}
+      aria-hidden
+    >
+      {iniciales}
+    </span>
+  )
+}
+
 /* ------------------------------------------------- Confirmar eliminación */
 export function ConfirmarEliminar({
   texto,

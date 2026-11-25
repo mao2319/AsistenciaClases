@@ -1,8 +1,9 @@
 "use client"
 
-import { Fragment, useState, type FormEvent } from "react"
-import { KeyRound, Pencil, Plus, Trash2, UserRound } from "lucide-react"
+import { Fragment, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react"
+import { Camera, KeyRound, Pencil, Plus, Trash2, UserRound } from "lucide-react"
 import {
+  Avatar,
   Aviso,
   Boton,
   Campo,
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui"
 import type { Docente } from "@/lib/datos"
 import { mensajeError, supabase } from "@/lib/supabase/cliente"
+import { ErrorFoto, guardarFotoDocente, prepararFoto, quitarFotoDocente, urlsFotos } from "@/lib/fotos"
 import type { DatosAdmin } from "./page"
 
 export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; onCambio: () => Promise<void> }) {
@@ -28,6 +30,16 @@ export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; o
   const [mensaje, setMensaje] = useState<{ tono: "exito" | "peligro"; texto: string } | null>(null)
   const [porEliminar, setPorEliminar] = useState<number | null>(null)
   const [eliminando, setEliminando] = useState(false)
+  const [fotos, setFotos] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!datos) return
+    let vivo = true
+    urlsFotos(datos.docentes.map((d) => d.foto_path)).then((m) => vivo && setFotos(m))
+    return () => {
+      vivo = false
+    }
+  }, [datos])
 
   async function eliminar(d: Docente) {
     setEliminando(true)
@@ -36,6 +48,7 @@ export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; o
     setPorEliminar(null)
     if (error) return setMensaje({ tono: "peligro", texto: mensajeError(error) })
     if (!data?.length) return setMensaje({ tono: "peligro", texto: "No tienes permiso para eliminar docentes." })
+    if (d.foto_path) await supabase().storage.from("fotos-docentes").remove([d.foto_path])
     setMensaje({ tono: "exito", texto: `${d.nombres} ${d.apellidos} fue eliminado.` })
     await onCambio()
   }
@@ -56,6 +69,7 @@ export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; o
       {editando && (
         <FormDocente
           docente={editando === "nuevo" ? null : editando}
+          fotoUrl={editando !== "nuevo" && editando.foto_path ? fotos[editando.foto_path] : null}
           onCerrar={() => setEditando(null)}
           onGuardado={async (texto) => {
             setEditando(null)
@@ -106,8 +120,13 @@ export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; o
                 <Fragment key={d.id}>
                 <Tr className={d.activo ? "" : "text-zinc-400"}>
                   <Td className="tabular font-mono text-[13px]">{d.documento}</Td>
-                  <Td className="font-medium text-zinc-900">
-                    {d.apellidos}, {d.nombres}
+                  <Td>
+                    <div className="flex items-center gap-3">
+                      <Avatar url={d.foto_path ? fotos[d.foto_path] : null} nombre={`${d.nombres} ${d.apellidos}`} tam={32} />
+                      <span className="font-medium text-zinc-900">
+                        {d.apellidos}, {d.nombres}
+                      </span>
+                    </div>
                   </Td>
                   <Td className="text-[13px]">{d.email ?? <span className="text-zinc-400">Sin correo</span>}</Td>
                   <Td>{d.activo ? <Etiqueta tono="info">Activo</Etiqueta> : <Etiqueta>Inactivo</Etiqueta>}</Td>
@@ -164,10 +183,12 @@ export function TablaDocentes({ datos, onCambio }: { datos: DatosAdmin | null; o
 
 function FormDocente({
   docente,
+  fotoUrl,
   onCerrar,
   onGuardado,
 }: {
   docente: Docente | null
+  fotoUrl: string | null
   onCerrar: () => void
   onGuardado: (mensaje: string) => Promise<void>
 }) {
@@ -178,6 +199,32 @@ function FormDocente({
   const [errores, setErrores] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [foto, setFoto] = useState<Blob | null>(null)
+  const [vistaPrevia, setVistaPrevia] = useState<string | null>(fotoUrl)
+  const [quitarFoto, setQuitarFoto] = useState(false)
+  const [errorFoto, setErrorFoto] = useState<string | null>(null)
+  const archivoRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return () => {
+      if (vistaPrevia?.startsWith("blob:")) URL.revokeObjectURL(vistaPrevia)
+    }
+  }, [vistaPrevia])
+
+  async function elegirFoto(e: ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0]
+    e.target.value = ""
+    if (!archivo) return
+    setErrorFoto(null)
+    try {
+      const blob = await prepararFoto(archivo)
+      setFoto(blob)
+      setQuitarFoto(false)
+      setVistaPrevia(URL.createObjectURL(blob))
+    } catch (err) {
+      setErrorFoto(err instanceof ErrorFoto ? err.message : "No se pudo usar esa imagen.")
+    }
+  }
 
   async function guardar(e: FormEvent) {
     e.preventDefault()
@@ -197,11 +244,21 @@ function FormDocente({
       email: email.trim() ? email.trim().toLowerCase() : null,
     }
     const sb = supabase()
-    const { error } = docente
-      ? await sb.from("docente").update(valores).eq("id", docente.id)
-      : await sb.from("docente").insert(valores)
+    const res = docente
+      ? await sb.from("docente").update(valores).eq("id", docente.id).select("id").single()
+      : await sb.from("docente").insert(valores).select("id").single()
+    if (res.error) {
+      setEnviando(false)
+      return setError(mensajeError(res.error))
+    }
+    try {
+      if (foto) await guardarFotoDocente(res.data.id, foto, docente?.foto_path ?? null)
+      else if (quitarFoto && docente?.foto_path) await quitarFotoDocente(docente.id, docente.foto_path)
+    } catch (err) {
+      setEnviando(false)
+      return setError(err instanceof Error ? err.message : "No se pudo guardar la foto.")
+    }
     setEnviando(false)
-    if (error) return setError(mensajeError(error))
     await onGuardado(`${valores.nombres} ${valores.apellidos} ${docente ? "actualizado" : "agregado"}.`)
   }
 
@@ -209,6 +266,37 @@ function FormDocente({
     <Panel className="animate-entrar">
       <TituloPanel titulo={docente ? "Editar docente" : "Nuevo docente"} />
       <form onSubmit={guardar} noValidate className="grid gap-4 px-5 pb-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex items-center gap-4 sm:col-span-2 lg:col-span-4">
+          <Avatar url={vistaPrevia} nombre={`${nombres || "Nuevo"} ${apellidos || "docente"}`} tam={72} />
+          <div className="space-y-2">
+            <p className="text-[13px] font-medium text-zinc-700">Foto</p>
+            <div className="flex flex-wrap gap-2">
+              <Boton type="button" variante="secundario" tam="sm" onClick={() => archivoRef.current?.click()}>
+                <Camera className="size-3.5" aria-hidden /> {vistaPrevia ? "Cambiar foto" : "Subir foto"}
+              </Boton>
+              {vistaPrevia && (
+                <Boton
+                  type="button"
+                  variante="fantasma"
+                  tam="sm"
+                  onClick={() => {
+                    setFoto(null)
+                    setVistaPrevia(null)
+                    setQuitarFoto(true)
+                  }}
+                >
+                  Quitar
+                </Boton>
+              )}
+            </div>
+            <input ref={archivoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={elegirFoto} />
+            {errorFoto ? (
+              <p className="text-[13px] text-peligro">{errorFoto}</p>
+            ) : (
+              <p className="text-xs text-zinc-500">JPG, PNG o WebP. Se recorta en cuadrado. En tablet o celular puedes tomarla con la cámara.</p>
+            )}
+          </div>
+        </div>
         <Campo etiqueta="Documento" htmlFor="d-doc" error={errores.documento}>
           <Entrada id="d-doc" inputMode="numeric" value={documento} onChange={(e) => setDocumento(e.target.value)} aria-invalid={Boolean(errores.documento)} />
         </Campo>

@@ -36,6 +36,18 @@ export async function sesionesPorFecha(fecha: string, docenteId?: number | null)
   return data as unknown as SesionDetalle[]
 }
 
+export async function sesionesEnRango(desde: string, hasta: string): Promise<SesionDetalle[]> {
+  const { data, error } = await supabase()
+    .from("sesion")
+    .select(COLUMNAS_SESION)
+    .gte("fecha", desde)
+    .lte("fecha", hasta)
+    .order("fecha")
+    .order("hora_inicio")
+  if (error) throw error
+  return data as unknown as SesionDetalle[]
+}
+
 export async function sesionesDeDocente(docenteId: number, desde: string, hasta: string): Promise<SesionDetalle[]> {
   const { data, error } = await supabase()
     .from("sesion")

@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { Download, FileSearch } from "lucide-react"
+import { Fragment, useCallback, useEffect, useState } from "react"
+import { Download, FileSearch, Trash2 } from "lucide-react"
 import { useSesion } from "@/components/sesion"
 import {
   Aviso,
@@ -34,6 +34,9 @@ export default function HistorialPage() {
   const [sesiones, setSesiones] = useState<SesionDetalle[]>([])
   const [filas, setFilas] = useState<AsistenciaDetalle[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const [porEliminar, setPorEliminar] = useState<number | null>(null)
+  const esAdmin = perfil?.rol === "admin"
 
   useEffect(() => {
     if (!perfil?.rol) return
@@ -121,6 +124,11 @@ export default function HistorialPage() {
           {error}
         </Aviso>
       )}
+      {aviso && (
+        <Aviso tono="exito" className="mb-6">
+          {aviso}
+        </Aviso>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Panel className="overflow-hidden">
@@ -143,11 +151,13 @@ export default function HistorialPage() {
                   <Th>Sesión</Th>
                   <Th>Docente</Th>
                   <Th>Método</Th>
+                  {esAdmin && <Th className="text-right">Acciones</Th>}
                 </tr>
               </thead>
               <tbody>
                 {filas.map((f) => (
-                  <Tr key={f.id}>
+                  <Fragment key={f.id}>
+                  <Tr>
                     <Td className="tabular whitespace-nowrap font-mono text-[13px] text-zinc-500">{horaDe(f.registrada_en)}</Td>
                     <Td>
                       <p className="font-medium text-zinc-900">{f.estudiante}</p>
@@ -170,7 +180,37 @@ export default function HistorialPage() {
                         <Etiqueta>Facial</Etiqueta>
                       )}
                     </Td>
+                    {esAdmin && (
+                      <Td className="text-right">
+                        <Boton
+                          variante="fantasma"
+                          tam="sm"
+                          onClick={() => setPorEliminar(porEliminar === f.id ? null : f.id)}
+                          aria-label={`Eliminar la asistencia de ${f.estudiante}`}
+                          title="Eliminar registro"
+                        >
+                          <Trash2 className="size-3.5" aria-hidden />
+                        </Boton>
+                      </Td>
+                    )}
                   </Tr>
+                  {esAdmin && porEliminar === f.id && f.id !== null && (
+                    <tr>
+                      <td colSpan={6} className="px-5 pb-3">
+                        <EliminarRegistro
+                          id={f.id}
+                          estudiante={f.estudiante ?? ""}
+                          onCancelar={() => setPorEliminar(null)}
+                          onEliminado={(texto) => {
+                            setPorEliminar(null)
+                            setAviso(texto)
+                            consultar()
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </Tabla>
@@ -237,5 +277,59 @@ function Exportar({ fecha, sesionId, sesiones }: { fecha: string; sesionId: numb
         </Boton>
       </div>
     </Panel>
+  )
+}
+
+/** Solo administrador: elimina un registro de asistencia con motivo (queda en la bitácora). */
+function EliminarRegistro({
+  id,
+  estudiante,
+  onCancelar,
+  onEliminado,
+}: {
+  id: number
+  estudiante: string
+  onCancelar: () => void
+  onEliminado: (mensaje: string) => void
+}) {
+  const [motivo, setMotivo] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+
+  async function eliminar() {
+    setError(null)
+    if (motivo.trim().length < 5) return setError("Escribe el motivo (mínimo 5 caracteres).")
+    setEnviando(true)
+    const { error } = await supabase().rpc("eliminar_asistencia", { p_asistencia_id: id, p_motivo: motivo })
+    setEnviando(false)
+    if (error) return setError(mensajeError(error))
+    onEliminado(`Se eliminó la asistencia de ${estudiante}. El motivo quedó guardado en la bitácora.`)
+  }
+
+  return (
+    <div className="animate-entrar space-y-3 rounded-lg bg-peligro-suave px-3.5 py-3">
+      <p className="text-sm text-peligro">
+        ¿Eliminar la asistencia de <span className="font-medium">{estudiante}</span>? Indica el motivo.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Entrada
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="Ej.: registro equivocado, la persona no estaba en clase"
+          aria-label="Motivo de la eliminación"
+          aria-invalid={Boolean(error)}
+          autoFocus
+        />
+        <div className="flex shrink-0 gap-2">
+          <Boton variante="fantasma" tam="md" onClick={onCancelar}>
+            Cancelar
+          </Boton>
+          <Boton className="bg-peligro hover:bg-[oklch(0.45_0.18_27)]" cargando={enviando} onClick={eliminar}>
+            Eliminar
+          </Boton>
+        </div>
+      </div>
+      {error && <p className="text-[13px] text-peligro">{error}</p>}
+    </div>
   )
 }

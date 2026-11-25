@@ -24,6 +24,50 @@ export function sumarDias(fecha: string, dias: number): string {
   return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10)
 }
 
+function aFecha(fecha: string): Date {
+  const [a, m, d] = fecha.split("-").map(Number)
+  return new Date(Date.UTC(a, m - 1, d))
+}
+
+/** Día de la semana con lunes = 0 … domingo = 6. */
+export function diaSemana(fecha: string): number {
+  return (aFecha(fecha).getUTCDay() + 6) % 7
+}
+
+/** Lunes de la semana de la fecha. */
+export function inicioSemana(fecha: string): string {
+  return sumarDias(fecha, -diaSemana(fecha))
+}
+
+export function inicioMes(fecha: string): string {
+  return `${fecha.slice(0, 7)}-01`
+}
+
+export function sumarMeses(fecha: string, meses: number): string {
+  const [a, m] = fecha.split("-").map(Number)
+  return new Date(Date.UTC(a, m - 1 + meses, 1)).toISOString().slice(0, 10)
+}
+
+/** "noviembre de 2026" */
+export function mesAnio(fecha: string): string {
+  return new Intl.DateTimeFormat("es-CO", { timeZone: "UTC", month: "long", year: "numeric" }).format(aFecha(fecha))
+}
+
+/** "lun", "mar"… */
+export function diaCorto(fecha: string): string {
+  return new Intl.DateTimeFormat("es-CO", { timeZone: "UTC", weekday: "short" }).format(aFecha(fecha)).replace(".", "")
+}
+
+export function numeroDia(fecha: string): number {
+  return Number(fecha.slice(8, 10))
+}
+
+/** "07:30" -> 7.5 */
+export function horaDecimal(hora: string): number {
+  const [h, m] = hora.split(":").map(Number)
+  return h + m / 60
+}
+
 /** "miércoles, 25 de noviembre de 2026" */
 export function fechaLarga(fecha: string): string {
   const [a, m, d] = fecha.split("-").map(Number)

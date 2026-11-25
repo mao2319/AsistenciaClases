@@ -9,8 +9,9 @@ import { mensajeError, supabase } from "@/lib/supabase/cliente"
 import { TablaEstudiantes } from "./estudiantes"
 import { TablaDocentes } from "./docentes"
 import { TablaGrupos } from "./grupos"
+import { TablaAdministradores } from "./administradores"
 
-type Pestana = "estudiantes" | "docentes" | "grupos"
+type Pestana = "estudiantes" | "docentes" | "grupos" | "administradores"
 
 export type DatosAdmin = {
   estudiantes: Estudiante[]
@@ -24,6 +25,7 @@ export default function AdminPage() {
   const [pestana, setPestana] = useState<Pestana>("estudiantes")
   const [datos, setDatos] = useState<DatosAdmin | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [numAdmins, setNumAdmins] = useState<number | undefined>(undefined)
 
   const recargar = useCallback(async () => {
     try {
@@ -65,7 +67,7 @@ export default function AdminPage() {
     <>
       <Encabezado
         titulo="Administración"
-        descripcion="Gestiona estudiantes, docentes y grupos. Los registros no se borran: se desactivan."
+        descripcion="Gestiona estudiantes, docentes, grupos y administradores. Desactiva lo que tenga historial; elimina solo lo creado por error."
       />
       {error && (
         <Aviso tono="peligro" className="mb-6">
@@ -80,12 +82,14 @@ export default function AdminPage() {
             { valor: "estudiantes", etiqueta: "Estudiantes", cuenta: datos?.estudiantes.length },
             { valor: "docentes", etiqueta: "Docentes", cuenta: datos?.docentes.length },
             { valor: "grupos", etiqueta: "Grupos", cuenta: datos?.grupos.length },
+            { valor: "administradores", etiqueta: "Administradores", cuenta: numAdmins },
           ]}
         />
       </div>
       {pestana === "estudiantes" && <TablaEstudiantes datos={datos} onCambio={recargar} />}
       {pestana === "docentes" && <TablaDocentes datos={datos} onCambio={recargar} />}
       {pestana === "grupos" && <TablaGrupos datos={datos} onCambio={recargar} />}
+      {pestana === "administradores" && <TablaAdministradores onCuenta={setNumAdmins} />}
     </>
   )
 }

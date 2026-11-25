@@ -168,6 +168,14 @@ export type Database = {
     }
     Functions: {
       docente_actual_id: { Args: never; Returns: number }
+      eliminar_asistencia: { Args: { p_asistencia_id: number; p_motivo: string }; Returns: Json }
+      listar_administradores: {
+        Args: never
+        Returns: { email: string; nombre: string; creado_en: string; tiene_usuario: boolean; ultimo_ingreso: string | null }[]
+      }
+      existe_usuario_auth: { Args: { p_email: string }; Returns: boolean }
+      agregar_administrador: { Args: { p_email: string; p_nombre: string }; Returns: Json }
+      quitar_administrador: { Args: { p_email: string }; Returns: Json }
       es_admin: { Args: never; Returns: boolean }
       es_personal: { Args: never; Returns: boolean }
       puede_operar_sesion: { Args: { p_docente_id: number }; Returns: boolean }

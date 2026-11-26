@@ -7,7 +7,8 @@ import { CLASES, caracteristicas, cargarExtractor, entrenar, marcarEspejo, type 
 
 type Fotos = Record<ClaseId, File[]>
 const vacio = (): Fotos => ({ sin_dano: [], poco_danada: [], muy_danada: [] })
-const MINIMO_POR_CLASE = 5
+const MINIMO_POR_CLASE = 1
+const RECOMENDADO_POR_CLASE = 5
 const META = 250
 
 const tonoClase: Record<string, string> = {
@@ -30,6 +31,7 @@ export function Entrenamiento({ onModelo }: { onModelo: (m: ModeloBotellas) => v
   const total = CLASES.reduce((s, c) => s + fotos[c.id].length, 0)
   const ocupado = fase === "extrayendo" || fase === "entrenando"
   const puedeEntrenar = CLASES.every((c) => fotos[c.id].length >= MINIMO_POR_CLASE) && !ocupado
+  const pocasFotos = CLASES.some((c) => fotos[c.id].length >= 1 && fotos[c.id].length < RECOMENDADO_POR_CLASE)
 
   function agregar(clase: ClaseId, lista: FileList | null) {
     const imagenes = Array.from(lista ?? []).filter((f) => f.type.startsWith("image/"))
@@ -104,7 +106,8 @@ export function Entrenamiento({ onModelo }: { onModelo: (m: ModeloBotellas) => v
               <span className="text-2xl font-semibold tracking-tight text-zinc-950">{total}</span> / {META} imágenes cargadas
             </p>
             <p className="text-[13px] text-zinc-500">
-              Mínimo {MINIMO_POR_CLASE} por categoría. Cada foto también se usa espejada; el 20 % se reserva para validar.
+              Mínimo {MINIMO_POR_CLASE} foto por categoría (recomendado {RECOMENDADO_POR_CLASE} o más). Cada foto también se usa
+              espejada; con 5 o más por categoría, el 20 % se reserva para validar.
             </p>
           </div>
           <Boton tam="lg" onClick={iniciar} disabled={!puedeEntrenar} cargando={ocupado}>
@@ -132,6 +135,13 @@ export function Entrenamiento({ onModelo }: { onModelo: (m: ModeloBotellas) => v
           </div>
         )}
       </Panel>
+
+      {pocasFotos && !ocupado && (
+        <Aviso tono="aviso" titulo="Resultado solo orientativo">
+          Con menos de {RECOMENDADO_POR_CLASE} fotos en alguna categoría el modelo aprende casi solo esas fotos: puede fallar con
+          otros ángulos, luz o botellas, y la exactitud se mide sobre las mismas fotos de entrenamiento.
+        </Aviso>
+      )}
 
       {modelo && <Resultados modelo={modelo} onDescargar={descargar} />}
     </div>

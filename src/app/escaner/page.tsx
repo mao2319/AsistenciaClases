@@ -1,7 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react"
-import { BottleWine, ChevronDown, Download, FileUp, ImagePlus, Loader2, RotateCcw } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft, BottleWine, ChevronDown, Download, FileUp, ImagePlus, Loader2, RotateCcw } from "lucide-react"
+import { useSesion } from "@/components/sesion"
 import { Aviso, Boton, Esqueleto, Panel, cx } from "@/components/ui"
 import { CLASES, caracteristicas, cargarExtractor, descargarModelo, predecir, type ModeloBotellas } from "@/lib/botellas"
 import { escaparCampo } from "@/lib/csv"
@@ -31,6 +33,7 @@ const barraClase: Record<string, string> = {
 }
 
 export default function EscanerPage() {
+  const { perfil } = useSesion()
   const [modelo, setModelo] = useState<ModeloBotellas | null | undefined>(undefined)
   const [origen, setOrigen] = useState<"local" | "publicado" | "archivo">("publicado")
   const [verEntrenar, setVerEntrenar] = useState(false)
@@ -168,6 +171,12 @@ export default function EscanerPage() {
 
   return (
     <div className="space-y-6">
+      <Link
+        href={perfil ? "/" : "/login"}
+        className="-mb-2 inline-flex items-center gap-1.5 text-sm text-zinc-500 transition-colors hover:text-zinc-900"
+      >
+        <ArrowLeft className="size-4" aria-hidden /> {perfil ? "Volver al inicio" : "Volver al inicio de sesión"}
+      </Link>
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-950">Escáner de botellas</h1>

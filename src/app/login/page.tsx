@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
-import { ScanFace } from "lucide-react"
+import { BottleWine, ChevronRight, ScanFace } from "lucide-react"
 import { supabase } from "@/lib/supabase/cliente"
 import { Aviso, Boton, Campo, Entrada } from "@/components/ui"
 
@@ -81,9 +81,21 @@ export default function LoginPage() {
             Ingresar
           </Boton>
         </form>
-        <p className="mt-6 text-center text-xs text-zinc-500">
-          Las cuentas las crea el administrador. Datos de demostración ficticios.
-        </p>
+        <p className="mt-4 text-center text-xs text-zinc-500">Las cuentas las crea el administrador.</p>
+
+        <a
+          href="/escaner"
+          className="mt-8 flex items-center gap-3 rounded-xl bg-white p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04),0_0_0_1px_rgb(0_0_0/0.06)] transition-colors hover:bg-zinc-50"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-zinc-100 text-zinc-800">
+            <BottleWine className="size-5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-zinc-950">Escáner de botellas</span>
+            <span className="block text-[13px] text-zinc-500">Analiza fotos de botellas sin iniciar sesión</span>
+          </span>
+          <ChevronRight className="size-4 text-zinc-400" aria-hidden />
+        </a>
       </div>
     </div>
   )

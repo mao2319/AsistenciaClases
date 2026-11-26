@@ -43,10 +43,13 @@ export async function proxy(request: NextRequest) {
     return r
   }
 
-  if (!autenticado && ruta !== "/login") return redirigir("/login")
+  // Páginas públicas: login y el escáner de botellas
+  const publica = ruta === "/login" || ruta === "/escaner"
+
+  if (!autenticado && !publica) return redirigir("/login")
   if (autenticado && ruta === "/login") return redirigir("/")
 
-  if (autenticado && ruta.startsWith("/admin")) {
+  if (autenticado && (ruta.startsWith("/admin") || ruta.startsWith("/escaner/entrenar"))) {
     const { data: rol } = await supabase.rpc("rol_actual")
     if (rol !== "admin") return redirigir("/?denegado=admin")
   }

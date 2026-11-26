@@ -176,16 +176,13 @@ export function Shell({ children }: { children: ReactNode }) {
 function ShellPublico({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-white">
-      <div className="sticky top-0 z-30 flex h-14 items-center justify-between bg-white/90 px-4 shadow-[0_1px_0_rgb(0_0_0/0.06)] backdrop-blur sm:px-8">
+      <div className="sticky top-0 z-30 flex h-14 items-center bg-white/90 px-4 shadow-[0_1px_0_rgb(0_0_0/0.06)] backdrop-blur sm:px-8">
         <span className="flex items-center gap-2.5">
           <span className="grid size-7 place-items-center rounded-lg bg-zinc-950 text-white">
             <BottleWine className="size-4" aria-hidden />
           </span>
           <span className="text-[15px] font-semibold tracking-tight text-zinc-950">Escáner de botellas</span>
         </span>
-        <Link href="/login" className="text-sm font-medium text-zinc-600 hover:text-zinc-950">
-          Ingresar
-        </Link>
       </div>
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8">{children}</main>
     </div>

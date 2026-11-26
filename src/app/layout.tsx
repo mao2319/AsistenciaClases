@@ -9,7 +9,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] })
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: { default: "Pase de lista", template: "%s · Pase de lista" },
+  title: { default: "Asistencia Face ID ESAVE", template: "%s · Asistencia Face ID ESAVE" },
   description: "Registro de asistencia a clase por reconocimiento facial.",
 }
 

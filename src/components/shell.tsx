@@ -32,7 +32,7 @@ function Marca() {
       <span className="grid size-7 place-items-center rounded-lg bg-zinc-950 text-white">
         <ScanFace className="size-4" aria-hidden />
       </span>
-      <span className="text-[15px] font-semibold tracking-tight text-zinc-950">Pase de lista</span>
+      <span className="text-[15px] font-semibold tracking-tight text-zinc-950">Asistencia Face ID ESAVE</span>
     </Link>
   )
 }

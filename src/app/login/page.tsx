@@ -45,7 +45,7 @@ export default function LoginPage() {
             <ScanFace className="size-5" aria-hidden />
           </span>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight text-zinc-950">Pase de lista</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-zinc-950">Asistencia Face ID ESAVE</h1>
             <p className="mt-1 text-sm text-zinc-500">Ingresa con tu cuenta de docente o administrador</p>
           </div>
         </div>

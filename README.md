@@ -1,4 +1,4 @@
-# Pase de lista — Asistencia por reconocimiento facial
+# Asistencia Face ID ESAVE — Asistencia por reconocimiento facial
 
 Proyecto final de Programación I (ESAVE). Aplicación web que llama a lista con la cámara: cada registro queda asociado a **un estudiante, un docente y una sesión de clase**.
 

@@ -1,23 +1,9 @@
 "use client"
 
-import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { ArrowLeft, FolderOpen, ImagePlus, Loader2, Trash2, UploadCloud } from "lucide-react"
-import { useSesion } from "@/components/sesion"
-import { Aviso, Boton, Encabezado, Panel, TituloPanel, Vacio, cx } from "@/components/ui"
-import {
-  CLASES,
-  caracteristicas,
-  cargarExtractor,
-  descargarModelo,
-  entrenar,
-  marcarEspejo,
-  type ClaseId,
-  type ModeloBotellas,
-  type Muestra,
-} from "@/lib/botellas"
-import { fechaHoraDe } from "@/lib/fechas"
-import { mensajeError, supabase } from "@/lib/supabase/cliente"
+import { Download, FolderOpen, ImagePlus, Loader2, Trash2, UploadCloud } from "lucide-react"
+import { Aviso, Boton, Panel, cx } from "@/components/ui"
+import { CLASES, caracteristicas, cargarExtractor, entrenar, marcarEspejo, type ClaseId, type ModeloBotellas, type Muestra } from "@/lib/botellas"
 
 type Fotos = Record<ClaseId, File[]>
 const vacio = (): Fotos => ({ sin_dano: [], poco_danada: [], muy_danada: [] })
@@ -31,45 +17,27 @@ const tonoClase: Record<string, string> = {
 }
 
 /**
- * Entrenamiento del escáner (solo administrador). Las fotos se leen en memoria del navegador:
- * no se suben ni se guardan. Solo se publica el modelo resultante (pesos numéricos).
+ * Entrenamiento del escáner. Las fotos de referencia se leen en la memoria del navegador:
+ * no se suben ni se guardan. El modelo resultante (solo números) se usa de inmediato.
  */
-export default function EntrenarPage() {
-  const { perfil, cargando } = useSesion()
+export function Entrenamiento({ onModelo }: { onModelo: (m: ModeloBotellas) => void }) {
   const [fotos, setFotos] = useState<Fotos>(vacio)
   const [fase, setFase] = useState<"listo" | "extrayendo" | "entrenando" | "terminado">("listo")
   const [progreso, setProgreso] = useState({ actual: 0, total: 0, exactitud: 0 })
   const [modelo, setModelo] = useState<ModeloBotellas | null>(null)
-  const [publicado, setPublicado] = useState<ModeloBotellas | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
-  const [publicando, setPublicando] = useState(false)
-
-  useEffect(() => {
-    descargarModelo().then(setPublicado).catch(() => setPublicado(null))
-  }, [])
-
-  if (!cargando && perfil?.rol !== "admin") {
-    return (
-      <Panel>
-        <Vacio titulo="Acceso restringido">Solo un administrador puede entrenar el modelo del escáner.</Vacio>
-      </Panel>
-    )
-  }
 
   const total = CLASES.reduce((s, c) => s + fotos[c.id].length, 0)
-  const puedeEntrenar = CLASES.every((c) => fotos[c.id].length >= MINIMO_POR_CLASE) && fase !== "extrayendo" && fase !== "entrenando"
+  const ocupado = fase === "extrayendo" || fase === "entrenando"
+  const puedeEntrenar = CLASES.every((c) => fotos[c.id].length >= MINIMO_POR_CLASE) && !ocupado
 
   function agregar(clase: ClaseId, lista: FileList | null) {
     const imagenes = Array.from(lista ?? []).filter((f) => f.type.startsWith("image/"))
     setFotos((f) => ({ ...f, [clase]: [...f[clase], ...imagenes] }))
-    setModelo(null)
-    setFase("listo")
   }
 
   async function iniciar() {
     setError(null)
-    setAviso(null)
     setModelo(null)
     try {
       setFase("extrayendo")
@@ -77,7 +45,6 @@ export default function EntrenarPage() {
       await cargarExtractor()
       const muestras: Muestra[] = []
       let grupo = 0
-      let hechos = 0
       for (let c = 0; c < CLASES.length; c++) {
         for (const archivo of fotos[CLASES[c].id]) {
           try {
@@ -87,100 +54,64 @@ export default function EntrenarPage() {
             // imagen ilegible: se omite
           }
           grupo++
-          hechos++
-          setProgreso((p) => ({ ...p, actual: hechos }))
+          setProgreso((p) => ({ ...p, actual: grupo }))
         }
       }
       setFase("entrenando")
       const conteo = { sin_dano: fotos.sin_dano.length, poco_danada: fotos.poco_danada.length, muy_danada: fotos.muy_danada.length }
-      const m = await entrenar(muestras, conteo, (epoca, totalEpocas, exactitud) =>
-        setProgreso({ actual: epoca, total: totalEpocas, exactitud }),
-      )
+      const m = await entrenar(muestras, conteo, (epoca, totalEpocas, exactitud) => setProgreso({ actual: epoca, total: totalEpocas, exactitud }))
       setModelo(m)
       setFase("terminado")
+      onModelo(m)
     } catch (e) {
       setFase("listo")
       setError(e instanceof Error ? `No se pudo entrenar: ${e.message}` : "No se pudo entrenar el modelo.")
     }
   }
 
-  async function publicar() {
+  function descargar() {
     if (!modelo) return
-    setPublicando(true)
-    setError(null)
-    const archivo = new Blob([JSON.stringify(modelo)], { type: "application/json" })
-    const { error } = await supabase().storage.from("modelos").upload("botellas.json", archivo, {
-      upsert: true,
-      contentType: "application/json",
-      cacheControl: "60",
-    })
-    setPublicando(false)
-    if (error) return setError(mensajeError(error))
-    setPublicado(modelo)
-    setAviso("Modelo publicado. El escáner público ya usa esta versión.")
+    const url = URL.createObjectURL(new Blob([JSON.stringify(modelo)], { type: "application/json" }))
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `modelo_botellas_${modelo.creado_en.slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
-    <>
-      <Link href="/escaner" className="mb-4 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900">
-        <ArrowLeft className="size-4" aria-hidden /> Volver al escáner
-      </Link>
-      <Encabezado
-        titulo="Entrenar el escáner de botellas"
-        descripcion={`Carga las fotos de referencia en cada categoría (meta: ${META} en total). Se procesan en este navegador y no se guardan; solo se publica el modelo resultante.`}
-      />
+    <div className="space-y-4">
+      {error && <Aviso tono="peligro">{error}</Aviso>}
 
-      {publicado && (
-        <p className="-mt-4 mb-6 text-[13px] text-zinc-500">
-          Modelo publicado actualmente: {Object.values(publicado.imagenes).reduce((a, b) => a + b, 0)} imágenes · exactitud{" "}
-          {Math.round(publicado.metricas.exactitud * 100)} % · {fechaHoraDe(publicado.creado_en)}
-        </p>
-      )}
-      {error && (
-        <Aviso tono="peligro" className="mb-6">
-          {error}
-        </Aviso>
-      )}
-      {aviso && (
-        <Aviso tono="exito" className="mb-6">
-          {aviso}
-        </Aviso>
-      )}
-
-      <div className="mb-6 grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {CLASES.map((c) => (
           <ZonaClase
             key={c.id}
             etiqueta={c.etiqueta}
             tono={c.tono}
             fotos={fotos[c.id]}
-            deshabilitado={fase === "extrayendo" || fase === "entrenando"}
+            deshabilitado={ocupado}
             onAgregar={(l) => agregar(c.id, l)}
-            onVaciar={() => {
-              setFotos((f) => ({ ...f, [c.id]: [] }))
-              setModelo(null)
-              setFase("listo")
-            }}
+            onVaciar={() => setFotos((f) => ({ ...f, [c.id]: [] }))}
           />
         ))}
       </div>
 
-      <Panel className="mb-6">
+      <Panel>
         <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="tabular text-sm text-zinc-700">
               <span className="text-2xl font-semibold tracking-tight text-zinc-950">{total}</span> / {META} imágenes cargadas
             </p>
             <p className="text-[13px] text-zinc-500">
-              Mínimo {MINIMO_POR_CLASE} por categoría. Cada foto también se usa espejada para mejorar el aprendizaje; el 20 % se
-              reserva para validar.
+              Mínimo {MINIMO_POR_CLASE} por categoría. Cada foto también se usa espejada; el 20 % se reserva para validar.
             </p>
           </div>
-          <Boton tam="lg" onClick={iniciar} disabled={!puedeEntrenar} cargando={fase === "extrayendo" || fase === "entrenando"}>
+          <Boton tam="lg" onClick={iniciar} disabled={!puedeEntrenar} cargando={ocupado}>
             {fase === "extrayendo" ? "Analizando fotos…" : fase === "entrenando" ? "Entrenando…" : "Entrenar modelo"}
           </Boton>
         </div>
-        {(fase === "extrayendo" || fase === "entrenando") && (
+        {ocupado && (
           <div className="space-y-2 px-5 pb-5">
             <div className="flex justify-between text-[13px] text-zinc-600">
               <span className="flex items-center gap-2">
@@ -202,8 +133,8 @@ export default function EntrenarPage() {
         )}
       </Panel>
 
-      {modelo && <Resultados modelo={modelo} onPublicar={publicar} publicando={publicando} />}
-    </>
+      {modelo && <Resultados modelo={modelo} onDescargar={descargar} />}
+    </div>
   )
 }
 
@@ -250,7 +181,7 @@ function ZonaClase({
             ))}
           </div>
         ) : (
-          <div className="grid h-24 place-items-center rounded-lg bg-zinc-50 text-[13px] text-zinc-400">
+          <div className="grid h-24 place-items-center rounded-lg bg-zinc-50 text-zinc-400">
             <UploadCloud className="size-5" aria-hidden />
           </div>
         )}
@@ -297,19 +228,21 @@ function ZonaClase({
   )
 }
 
-function Resultados({ modelo, onPublicar, publicando }: { modelo: ModeloBotellas; onPublicar: () => void; publicando: boolean }) {
+function Resultados({ modelo, onDescargar }: { modelo: ModeloBotellas; onDescargar: () => void }) {
   const m = modelo.metricas
   return (
     <Panel>
-      <TituloPanel
-        titulo="Resultado del entrenamiento"
-        descripcion={`${m.entrenamiento} fotos para entrenar · ${m.validacion} fotos para validar`}
-        acciones={
-          <Boton onClick={onPublicar} cargando={publicando}>
-            <UploadCloud className="size-4" aria-hidden /> Publicar modelo
-          </Boton>
-        }
-      />
+      <div className="flex items-start justify-between gap-4 px-5 pb-3 pt-4">
+        <div>
+          <h3 className="text-[15px] font-semibold text-zinc-950">Resultado del entrenamiento</h3>
+          <p className="mt-0.5 text-[13px] text-zinc-500">
+            {m.entrenamiento} fotos para entrenar · {m.validacion} para validar. El escáner ya usa este modelo.
+          </p>
+        </div>
+        <Boton variante="secundario" tam="sm" onClick={onDescargar}>
+          <Download className="size-3.5" aria-hidden /> Descargar modelo
+        </Boton>
+      </div>
       <div className="grid gap-6 px-5 pb-5 lg:grid-cols-[200px_1fr]">
         <div>
           <p className="text-[13px] text-zinc-500">Exactitud en validación</p>

@@ -49,7 +49,7 @@ export async function proxy(request: NextRequest) {
   if (!autenticado && !publica) return redirigir("/login")
   if (autenticado && ruta === "/login") return redirigir("/")
 
-  if (autenticado && (ruta.startsWith("/admin") || ruta.startsWith("/escaner/entrenar"))) {
+  if (autenticado && ruta.startsWith("/admin")) {
     const { data: rol } = await supabase.rpc("rol_actual")
     if (rol !== "admin") return redirigir("/?denegado=admin")
   }

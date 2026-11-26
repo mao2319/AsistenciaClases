@@ -1,13 +1,14 @@
 "use client"
 
-import Link from "next/link"
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react"
-import { BottleWine, Download, ImagePlus, Loader2, RotateCcw, ShieldCheck } from "lucide-react"
-import { useSesion } from "@/components/sesion"
+import { BottleWine, ChevronDown, Download, FileUp, ImagePlus, Loader2, RotateCcw } from "lucide-react"
 import { Aviso, Boton, Esqueleto, Panel, cx } from "@/components/ui"
 import { CLASES, caracteristicas, cargarExtractor, descargarModelo, predecir, type ModeloBotellas } from "@/lib/botellas"
 import { escaparCampo } from "@/lib/csv"
 import { fechaHoraDe } from "@/lib/fechas"
+import { Entrenamiento } from "./entrenamiento"
+
+const CLAVE_LOCAL = "modelo-botellas"
 
 type Resultado = {
   id: string
@@ -30,8 +31,11 @@ const barraClase: Record<string, string> = {
 }
 
 export default function EscanerPage() {
-  const { perfil } = useSesion()
   const [modelo, setModelo] = useState<ModeloBotellas | null | undefined>(undefined)
+  const [origen, setOrigen] = useState<"local" | "publicado" | "archivo">("publicado")
+  const [verEntrenar, setVerEntrenar] = useState(false)
+  const [errorArchivo, setErrorArchivo] = useState<string | null>(null)
+  const archivoModelo = useRef<HTMLInputElement>(null)
   const [motor, setMotor] = useState<"inactivo" | "cargando" | "listo" | "error">("inactivo")
   const [resultados, setResultados] = useState<Resultado[]>([])
   const [arrastrando, setArrastrando] = useState(false)
@@ -39,9 +43,31 @@ export default function EscanerPage() {
   const urls = useRef<string[]>([])
 
   useEffect(() => {
-    descargarModelo()
-      .then(setModelo)
-      .catch(() => setModelo(null))
+    // 1) modelo entrenado en este navegador; 2) modelo publicado (si existe)
+    let local: ModeloBotellas | null = null
+    try {
+      const guardado = localStorage.getItem(CLAVE_LOCAL)
+      if (guardado) local = JSON.parse(guardado) as ModeloBotellas
+    } catch {
+      local = null
+    }
+    if (local?.version === 1) {
+      setTimeout(() => {
+        setModelo(local)
+        setOrigen("local")
+      }, 0)
+    } else {
+      descargarModelo()
+        .then((m) => {
+          setModelo(m)
+          setOrigen("publicado")
+          if (!m) setVerEntrenar(true)
+        })
+        .catch(() => {
+          setModelo(null)
+          setVerEntrenar(true)
+        })
+    }
     const lista = urls.current
     return () => lista.forEach((u) => URL.revokeObjectURL(u))
   }, [])
@@ -81,6 +107,28 @@ export default function EscanerPage() {
     },
     [modelo],
   )
+
+  function usarModelo(m: ModeloBotellas, desde: "local" | "archivo") {
+    setModelo(m)
+    setOrigen(desde)
+    try {
+      localStorage.setItem(CLAVE_LOCAL, JSON.stringify(m))
+    } catch {
+      // sin almacenamiento local: el modelo sirve mientras la página esté abierta
+    }
+  }
+
+  async function cargarArchivoModelo(archivo: File | undefined) {
+    setErrorArchivo(null)
+    if (!archivo) return
+    try {
+      const m = JSON.parse(await archivo.text()) as ModeloBotellas
+      if (m?.version !== 1 || !Array.isArray(m.pesos) || m.sesgo?.length !== CLASES.length) throw new Error()
+      usarModelo(m, "archivo")
+    } catch {
+      setErrorArchivo("El archivo no es un modelo válido del escáner (.json descargado desde aquí).")
+    }
+  }
 
   function soltar(e: DragEvent) {
     e.preventDefault()
@@ -128,32 +176,62 @@ export default function EscanerPage() {
             en tu navegador y no se guardan en ningún servidor.
           </p>
         </div>
-        {perfil?.rol === "admin" && (
-          <Link href="/escaner/entrenar" className="inline-flex items-center gap-1.5 text-sm font-medium text-acento hover:underline">
-            <ShieldCheck className="size-4" aria-hidden /> Entrenar modelo
-          </Link>
-        )}
       </header>
 
-      {modelo === undefined ? (
-        <Esqueleto className="h-14 w-full" />
-      ) : modelo === null ? (
-        <Aviso tono="aviso" titulo="El modelo aún no está entrenado">
-          Un administrador debe entrenarlo con las fotos de referencia (Sin daño, Un poco dañada y Muy dañada) en{" "}
-          <Link href="/escaner/entrenar" className="font-medium underline underline-offset-2">
-            Entrenar modelo
-          </Link>
-          .
-        </Aviso>
-      ) : (
-        <p className="text-[13px] text-zinc-500">
-          Modelo entrenado con{" "}
-          <span className="tabular font-medium text-zinc-800">{Object.values(modelo.imagenes).reduce((a, b) => a + b, 0)}</span>{" "}
-          imágenes · exactitud en validación{" "}
-          <span className="tabular font-medium text-zinc-800">{Math.round(modelo.metricas.exactitud * 100)} %</span> · actualizado{" "}
-          {fechaHoraDe(modelo.creado_en)}
-        </p>
-      )}
+      {/* 1. Entrenar modelo */}
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            onClick={() => setVerEntrenar((v) => !v)}
+            className="flex items-center gap-2 text-left"
+            aria-expanded={verEntrenar}
+          >
+            <span className="grid size-6 place-items-center rounded-full bg-zinc-950 text-xs font-semibold text-white">1</span>
+            <span className="text-lg font-semibold tracking-tight text-zinc-950">Entrenar modelo</span>
+            <ChevronDown className={cx("size-4 text-zinc-500 transition-transform", verEntrenar && "rotate-180")} aria-hidden />
+          </button>
+          <div className="flex items-center gap-2">
+            <Boton variante="fantasma" tam="sm" onClick={() => archivoModelo.current?.click()}>
+              <FileUp className="size-3.5" aria-hidden /> Cargar modelo (.json)
+            </Boton>
+            <input
+              ref={archivoModelo}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                cargarArchivoModelo(e.target.files?.[0])
+                e.target.value = ""
+              }}
+            />
+          </div>
+        </div>
+
+        {modelo === undefined ? (
+          <Esqueleto className="h-6 w-96 max-w-full" />
+        ) : modelo === null ? (
+          <Aviso tono="aviso" titulo="Aún no hay un modelo">
+            Carga las fotos de referencia en las tres categorías y pulsa “Entrenar modelo”, o carga un modelo descargado antes.
+          </Aviso>
+        ) : (
+          <p className="text-[13px] text-zinc-500">
+            {origen === "publicado" ? "Modelo publicado" : origen === "archivo" ? "Modelo cargado desde archivo" : "Modelo entrenado en este navegador"} ·{" "}
+            <span className="tabular font-medium text-zinc-800">{Object.values(modelo.imagenes).reduce((a, b) => a + b, 0)}</span>{" "}
+            imágenes · exactitud{" "}
+            <span className="tabular font-medium text-zinc-800">{Math.round(modelo.metricas.exactitud * 100)} %</span> ·{" "}
+            {fechaHoraDe(modelo.creado_en)}
+          </p>
+        )}
+        {errorArchivo && <Aviso tono="peligro">{errorArchivo}</Aviso>}
+
+        {verEntrenar && <Entrenamiento onModelo={(m) => usarModelo(m, "local")} />}
+      </section>
+
+      {/* 2. Escanear */}
+      <div className="flex items-center gap-2 pt-2">
+        <span className="grid size-6 place-items-center rounded-full bg-zinc-950 text-xs font-semibold text-white">2</span>
+        <h2 className="text-lg font-semibold tracking-tight text-zinc-950">Escanear botellas</h2>
+      </div>
 
       {/* Zona para soltar fotos */}
       <div
